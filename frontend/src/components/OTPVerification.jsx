@@ -39,7 +39,7 @@ function OTPVerification() {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/verify-otp",
+        "https://login-signin-ten.vercel.app/api/verify-otp",
         {
           method: "POST",
           headers: {
