@@ -63,7 +63,7 @@ function Signup() {
 
     // Send data to backend
     try {
-      const response = await fetch("https://login-signin-ten.vercel.app/api/signup", {
+      const response = await fetch("https://login-signin-jtq4.vercel.app/api/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
