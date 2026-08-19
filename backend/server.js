@@ -16,7 +16,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 const FRONTEND_URL =
-  "https://login-signin-lqqn.vercel.app";
+  "https://login-signin-lqqn-1i9udzyf8-apex-7a60.vercel.app";
 
 // ======================================================
 // CORS
@@ -203,15 +203,20 @@ app.post("/api/signup", async (req, res) => {
     console.log(
       "=============================="
     );
+
     console.log("OTP GENERATED");
+
     console.log(
       "Email:",
       normalizedEmail
     );
+
     console.log("OTP:", otp);
+
     console.log(
       "Expires in: 5 minutes"
     );
+
     console.log(
       "=============================="
     );
@@ -434,13 +439,13 @@ app.post(
       const result =
         await pool.query(
           `SELECT
-             id,
-             name,
-             email,
-             password,
-             created_at
-           FROM users
-           WHERE email = $1`,
+            id,
+            name,
+            email,
+            password,
+            created_at
+          FROM users
+          WHERE email = $1`,
           [normalizedEmail]
         );
 
@@ -607,12 +612,12 @@ app.get(
       const result =
         await pool.query(
           `SELECT
-             id,
-             name,
-             email,
-             created_at
-           FROM users
-           WHERE id = $1`,
+            id,
+            name,
+            email,
+            created_at
+          FROM users
+          WHERE id = $1`,
           [req.user.id]
         );
 
@@ -628,6 +633,7 @@ app.get(
 
       return res.status(200).json({
         success: true,
+
         user:
           result.rows[0],
       });
