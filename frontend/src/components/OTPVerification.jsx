@@ -42,6 +42,7 @@ function OTPVerification() {
         "https://login-signin-jtq4.vercel.app/api/verify-otp",
         {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
