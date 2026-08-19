@@ -34,10 +34,12 @@ app.use(
       const allowedOrigins = [
         "http://localhost:5173",
         "http://localhost:5174",
-        FRONTEND_URL,
+        "https://login-signin-lgqn.vercel.app",
+        "https://login-signin-ten.vercel.app",
       ];
 
-      if (allowedOrigins.includes(origin)) {
+      // Allow any Vercel deployment
+      if (origin.includes("vercel.app") || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
