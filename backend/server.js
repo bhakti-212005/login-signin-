@@ -16,7 +16,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 const FRONTEND_URL =
-  "https://login-signin-lqqn-1i9udzyf8-apex-7a60.vercel.app";
+  "https://login-signin-lgqn.vercel.app";
 
 // ======================================================
 // CORS
