@@ -15,12 +15,11 @@ const app = express();
 
 const PORT = process.env.PORT || 5000;
 
-// Your frontend URLs
+// Frontend URLs allowed to communicate with this backend
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://login-signin-ten.vercel.app",
-  "https://login-signin-jtq4.vercel.app",
+  "https://login-signin-lqqn.vercel.app",
 ];
 
 // ======================================================
@@ -30,8 +29,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests without an origin
-      // (useful for Postman/server-to-server requests)
+      // Allow requests such as Postman/server-to-server
       if (!origin) {
         return callback(null, true);
       }
@@ -40,7 +38,9 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error("Not allowed by CORS"));
+      console.log("Blocked CORS origin:", origin);
+
+      return callback(null, false);
     },
     credentials: true,
   })
@@ -72,12 +72,31 @@ pool
   });
 
 // ======================================================
+// COOKIE CONFIGURATION
+// ======================================================
+
+const isProduction = process.env.NODE_ENV === "production";
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+// ======================================================
 // TEST BACKEND ROUTE
 // ======================================================
 
 app.get("/", (req, res) => {
   res.status(200).send("Backend server is running!");
 });
+
+// ======================================================
+// TEMPORARY OTP STORAGE
+// ======================================================
+
+const otpStore = {};
 
 // ======================================================
 // SIGNUP API
@@ -123,40 +142,45 @@ app.post("/api/signup", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
 
-    // Store signup info temporarily with OTP
+    // Store signup information temporarily
     otpStore[normalizedEmail] = {
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
       otp: otp,
-      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+      expiresAt: Date.now() + 5 * 60 * 1000,
     };
 
-    // Log OTP for debugging
-    console.log("\n🔐 OTP Generated:");
+    // Log OTP for development
+    console.log("\n==============================");
+    console.log("OTP GENERATED");
     console.log("Email:", normalizedEmail);
     console.log("OTP:", otp);
-    console.log("Expires in 5 minutes\n");
+    console.log("Expires in: 5 minutes");
+    console.log("==============================\n");
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent to your email. Please verify to complete signup.",
-      otp: otp, // For development - remove in production
+      message:
+        "OTP sent to your email. Please verify to complete signup.",
+
+      // Development only
+      otp: otp,
     });
   } catch (error) {
     console.error("Signup error:", error.message);
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while creating the account",
+      message:
+        "Something went wrong while creating the account",
     });
   }
 });
-
-// Temporary OTP storage
-const otpStore = {};
 
 // ======================================================
 // VERIFY OTP API
@@ -174,19 +198,23 @@ app.post("/api/verify-otp", async (req, res) => {
       });
     }
 
-    // Verify OTP from storage
-    if (!otpStore[email]) {
+    // Normalize email
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check OTP exists
+    if (!otpStore[normalizedEmail]) {
       return res.status(400).json({
         success: false,
         message: "OTP expired or invalid",
       });
     }
 
-    const storedOtp = otpStore[email];
+    const storedOtp = otpStore[normalizedEmail];
 
-    // Check if OTP expired
+    // Check expiration
     if (Date.now() > storedOtp.expiresAt) {
-      delete otpStore[email];
+      delete otpStore[normalizedEmail];
+
       return res.status(400).json({
         success: false,
         message: "OTP has expired",
@@ -194,47 +222,68 @@ app.post("/api/verify-otp", async (req, res) => {
     }
 
     // Verify OTP
-    if (storedOtp.otp !== otp) {
+    if (storedOtp.otp !== otp.toString()) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
       });
     }
 
-    // OTP verified - user can now login
-    // Insert user into database
+    // ==================================================
+    // INSERT USER INTO DATABASE
+    // ==================================================
+
     const result = await pool.query(
       `INSERT INTO users (name, email, password)
        VALUES ($1, $2, $3)
        RETURNING id, name, email, created_at`,
-      [storedOtp.name, storedOtp.email, storedOtp.password]
+      [
+        storedOtp.name,
+        storedOtp.email,
+        storedOtp.password,
+      ]
     );
 
     const user = result.rows[0];
-    console.log("✅ User registered:", user);
 
-    // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET || "your-secret-key";
+    console.log("User registered:", user);
+
+    // ==================================================
+    // CHECK JWT SECRET
+    // ==================================================
+
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET is missing");
+
+      return res.status(500).json({
+        success: false,
+        message: "JWT secret is not configured",
+      });
+    }
+
+    // ==================================================
+    // CREATE JWT
+    // ==================================================
 
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
       },
-      jwtSecret,
-      { expiresIn: "7d" }
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
     );
 
-    // Set JWT as HTTP-only cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    // ==================================================
+    // STORE JWT IN HTTPONLY COOKIE
+    // ==================================================
 
-    // Clean up OTP storage
-    delete otpStore[storedOtp.email];
+    res.cookie("token", token, cookieOptions);
+
+    // Remove OTP from temporary storage
+    delete otpStore[normalizedEmail];
 
     return res.status(200).json({
       success: true,
@@ -246,10 +295,15 @@ app.post("/api/verify-otp", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("OTP verification error:", error.message);
+    console.error(
+      "OTP verification error:",
+      error.message
+    );
+
     return res.status(500).json({
       success: false,
-      message: "Something went wrong during verification",
+      message:
+        "Something went wrong during verification",
     });
   }
 });
@@ -304,17 +358,26 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    // Check JWT secret
+    // ==================================================
+    // CHECK JWT SECRET
+    // ==================================================
+
     if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET is missing from .env");
+      console.error(
+        "JWT_SECRET is missing from environment variables"
+      );
 
       return res.status(500).json({
         success: false,
-        message: "Server authentication configuration error",
+        message:
+          "Server authentication configuration error",
       });
     }
 
-    // Create JWT
+    // ==================================================
+    // CREATE JWT
+    // ==================================================
+
     const token = jwt.sign(
       {
         id: user.id,
@@ -322,27 +385,18 @@ app.post("/api/login", async (req, res) => {
       },
       process.env.JWT_SECRET,
       {
-        expiresIn: "1d",
+        expiresIn: "7d",
       }
     );
 
-    // Remove password before sending user data
+    // Remove password
     delete user.password;
 
     // ==================================================
     // STORE JWT IN HTTPONLY COOKIE
     // ==================================================
 
-    res.cookie("token", token, {
-      httpOnly: true,
-
-      // For localhost testing:
-      secure: false,
-      sameSite: "lax",
-
-      // Cookie expires after 1 day
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+    res.cookie("token", token, cookieOptions);
 
     console.log("User logged in:", user.email);
 
@@ -352,11 +406,15 @@ app.post("/api/login", async (req, res) => {
       user: user,
     });
   } catch (error) {
-    console.error("Login error:", error.message);
+    console.error(
+      "Login error:",
+      error.message
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong during login",
+      message:
+        "Something went wrong during login",
     });
   }
 });
@@ -381,7 +439,8 @@ function authenticateToken(req, res, next) {
     if (!process.env.JWT_SECRET) {
       return res.status(500).json({
         success: false,
-        message: "JWT secret is not configured",
+        message:
+          "JWT secret is not configured",
       });
     }
 
@@ -391,12 +450,15 @@ function authenticateToken(req, res, next) {
       process.env.JWT_SECRET
     );
 
-    // Store decoded user information
+    // Store user information
     req.user = decoded;
 
     next();
   } catch (error) {
-    console.error("Authentication error:", error.message);
+    console.error(
+      "Authentication error:",
+      error.message
+    );
 
     return res.status(401).json({
       success: false,
@@ -409,35 +471,43 @@ function authenticateToken(req, res, next) {
 // GET CURRENT LOGGED-IN USER
 // ======================================================
 
-app.get("/api/me", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, name, email, created_at
-       FROM users
-       WHERE id = $1`,
-      [req.user.id]
-    );
+app.get(
+  "/api/me",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT id, name, email, created_at
+         FROM users
+         WHERE id = $1`,
+        [req.user.id]
+      );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        user: result.rows[0],
+      });
+    } catch (error) {
+      console.error(
+        "Get user error:",
+        error.message
+      );
+
+      return res.status(500).json({
         success: false,
-        message: "User not found",
+        message:
+          "Unable to get user information",
       });
     }
-
-    return res.status(200).json({
-      success: true,
-      user: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Get user error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Unable to get user information",
-    });
   }
-});
+);
 
 // ======================================================
 // LOGOUT API
@@ -446,8 +516,10 @@ app.get("/api/me", authenticateToken, async (req, res) => {
 app.post("/api/logout", (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: false,
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: isProduction
+      ? "none"
+      : "lax",
   });
 
   return res.status(200).json({
@@ -461,5 +533,15 @@ app.post("/api/logout", (req, res) => {
 // ======================================================
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(
+    `Server running on http://localhost:${PORT}`
+  );
+
+  console.log(
+    `Environment: ${
+      isProduction
+        ? "PRODUCTION"
+        : "DEVELOPMENT"
+    }`
+  );
 });
