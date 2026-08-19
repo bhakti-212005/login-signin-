@@ -1,25 +1,30 @@
 .otp-container {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
 }
 
 .otp-box {
-  width: 400px;
-  padding: 40px;
+  width: min(100%, 450px);
+  padding: clamp(28px, 6vw, 52px);
   text-align: center;
-  border-radius: 12px;
-  background: white;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(217, 213, 202, 0.9);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: rise-in 500ms ease both;
 }
 
 .otp-box h1 {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  font-size: clamp(2.25rem, 6vw, 3.4rem);
+  line-height: 0.98;
 }
 
 .otp-box p {
-  margin-bottom: 15px;
+  margin-bottom: 14px;
+  color: var(--muted);
 }
 
 .otp-box form {
@@ -29,26 +34,38 @@
 }
 
 .otp-box input {
-  padding: 12px;
-  font-size: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fffdf9;
+  color: var(--ink);
+  font-size: 1.25rem;
   text-align: center;
-  letter-spacing: 5px;
+  letter-spacing: 0.3em;
+}
+
+.otp-box input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  outline: none;
 }
 
 .otp-box button {
-  padding: 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #222;
-  color: white;
-  font-size: 16px;
+  padding: 14px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ink);
+  color: #fffdf9;
   cursor: pointer;
+  font-weight: 700;
 }
 
 .otp-box button:hover {
-  background-color: #444;
+  background: var(--accent);
+  transform: translateY(-2px);
 }
 
-.otp-box span {
-  color: red;
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
